@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  app:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Container name (makes it easier to find with 'docker ps')
+    container_name: pki_2fa_service
+
+    # Port mapping (Host:Container)
+    # Allows you to access the API at http://localhost:8080
+    ports:
+      - "8080:8080"
+
+    # Volume mounts
+    volumes:
+      # Named volumes for persistence
+      - seed-data:/data
+      - cron-output:/cron
+
+      # Mount keys from host (Read-Only)
+      # This ensures the container uses the exact keys you generated
+      - ./student_private.pem:/app/student_private.pem:ro
+      - ./student_public.pem:/app/student_public.pem:ro
+      - ./instructor_public.pem:/app/instructor_public.pem:ro
+
+    # Environment variables
+    environment:
+      - TZ=UTC
+
+    # Restart policy
+    # Automatically restarts the container if it crashes or the computer reboots
+    restart: unless-stopped
+
+# Define the named volumes
+volumes:
+  seed-data:
+  cron-output:

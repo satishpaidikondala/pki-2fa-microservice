@@ -1,1 +1,8 @@
 encrypted_seed.txt
+__pycache__/
+*.pyc
+.env
+.vscode/
+.idea/
+data/
+cron_output/
