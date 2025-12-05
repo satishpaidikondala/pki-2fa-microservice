@@ -10,7 +10,7 @@ COPY requirements.txt .
 
 # Install dependencies into a specific location (/install)
 # --prefix tells pip to install libraries here so we can copy them later
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --default-timeout=1000 --no-cache-dir --prefix=/install -r requirements.txt
 
 # ==========================================
 # Stage 2: Runtime (Minimal final image)
@@ -46,9 +46,20 @@ COPY student_public.pem /app/
 COPY instructor_public.pem /app/
 
 # --- Cron Job Setup ---
-# (We will create these files in Step 10, but the Dockerfile needs them defined now)
+# --- Cron Job Setup ---
 COPY cron/2fa-cron /etc/cron.d/2fa-cron
 COPY scripts /app/scripts
+
+# 1. Fix Windows line endings
+# 2. Create the /cron directory (CRITICAL STEP)
+# 3. Create the log file
+# 4. Set permissions and register cron
+RUN sed -i 's/\r$//' /etc/cron.d/2fa-cron && \
+    mkdir -p /cron && \
+    touch /cron/last_code.txt && \
+    chmod 0644 /etc/cron.d/2fa-cron && \
+    chmod 666 /cron/last_code.txt && \
+    crontab /etc/cron.d/2fa-cron
 
 # 1. Set permissions on cron file (must be 0644)
 # 2. Register the cron job
@@ -61,6 +72,8 @@ RUN chmod 0644 /etc/cron.d/2fa-cron && \
 # Expose the API port
 EXPOSE 8080
 
+# Add this to your Dockerfile to ensure the folder exists
+RUN mkdir -p /cron
 # Start Command:
 # 1. Starts the cron daemon in the background
 # 2. Starts the FastAPI server (uvicorn) in the foreground

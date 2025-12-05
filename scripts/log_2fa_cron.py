@@ -1,54 +1,42 @@
 #!/usr/bin/env python3
-import sys
 import os
+import base64
+import time
 import datetime
-import sys
+import pyotp
 
-# Add the /app directory to the python path so we can import app.crypto
-sys.path.append('/app')
-
-try:
-    from app.crypto import generate_totp_code
-except ImportError as e:
-    print(f"Error importing app.crypto: {e}", file=sys.stderr)
-    sys.exit(1)
-
-# Path to the persistent seed file (mounted volume)
-SEED_FILE = "/data/seed.txt"
+# Paths
+SEED_FILE_PATH = "/data/seed.txt"
+# Note: Output path is handled by the redirect in the cron file (>>), 
+# but printing to stdout is required.
 
 def main():
-    # 1. Read hex seed from persistent storage
-    try:
-        if not os.path.exists(SEED_FILE):
-            print(f"Error: Seed file not found at {SEED_FILE}", file=sys.stderr)
-            return
+    # 1. Check if seed exists
+    if not os.path.exists(SEED_FILE_PATH):
+        print(f"Error: Seed file not found at {SEED_FILE_PATH}")
+        return
 
-        with open(SEED_FILE, "r") as f:
+    try:
+        # 2. Read Seed
+        with open(SEED_FILE_PATH, "r") as f:
             hex_seed = f.read().strip()
-            
-        if not hex_seed:
-            print("Error: Seed file is empty", file=sys.stderr)
-            return
+
+        # 3. Generate TOTP (Same logic as App)
+        seed_bytes = bytes.fromhex(hex_seed)
+        base32_seed = base64.b32encode(seed_bytes).decode('utf-8')
+        totp = pyotp.TOTP(base32_seed)
+        
+        code = totp.now()
+
+        # 4. Get UTC Timestamp
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        timestamp_str = now_utc.strftime("%Y-%m-%d %H:%M:%S")
+
+        # 5. Print formatted output
+        print(f"{timestamp_str} - 2FA Code: {code}")
 
     except Exception as e:
-        print(f"Error reading seed file: {e}", file=sys.stderr)
-        return
-
-    # 2. Generate current TOTP code
-    try:
-        code = generate_totp_code(hex_seed)
-    except Exception as e:
-        print(f"Error generating TOTP: {e}", file=sys.stderr)
-        return
-
-    # 3. Get current UTC timestamp
-    # CRITICAL: Must use UTC to match server time
-    now_utc = datetime.datetime.now(datetime.timezone.utc)
-    timestamp_str = now_utc.strftime("%Y-%m-%d %H:%M:%S")
-
-    # 4. Output formatted line
-    # This goes to stdout, which cron redirects to /cron/last_code.txt
-    print(f"{timestamp_str} - 2FA Code: {code}")
+        print(f"Error generating TOTP: {e}")
 
 if __name__ == "__main__":
     main()
